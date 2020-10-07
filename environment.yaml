@@ -1,0 +1,18 @@
+name: DiCyR
+channels:
+    - pytorch
+    - defaults
+dependencies:
+    - python=3.7
+    - pip
+    - pytorch
+    - torchvision
+    - numpy
+    - pyyaml=3.12
+    - scikit-learn
+    - matplotlib
+    - h5py
+    - tqdm
+    - jupyterlab
+    - pip:
+        - tensorboard
