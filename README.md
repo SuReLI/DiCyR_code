@@ -20,5 +20,5 @@ Download the 3D shapes data [here](https://console.cloud.google.com/storage/brow
 
 
 ## Notebooks:
-All notebooks are available [here](https://github.com/AnonymousDiCyR/DiCyR/tree/main/DiCyR/notebooks)
+All notebooks are availables [here](https://github.com/AnonymousDiCyR/DiCyR/tree/main/DiCyR/notebooks).  
 Each of them represents one experiment iteration.
