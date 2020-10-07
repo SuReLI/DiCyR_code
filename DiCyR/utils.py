@@ -24,10 +24,10 @@ def show_decoded_images(x, y, x_permuted, x_eq):
     show_images_grid(y.detach().cpu())
     plt.title('reconstruction')
     plt.subplot(1,4,3)
-    show_images_grid(x_eq.detach().cpu())
+    show_images_grid(x_permuted.detach().cpu())
     plt.title('style')
     plt.subplot(1,4,4)
-    show_images_grid(x_permuted.detach().cpu())
+    show_images_grid(x_eq.detach().cpu())
     plt.title('swapped style')
     plt.show()
 

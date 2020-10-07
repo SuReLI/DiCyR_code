@@ -65,7 +65,7 @@ def train_domain_adaptation(model, optimizer, source_train_loader, target_train_
 
             loss += criterion_classifier(ys_hat, y_s)
             loss += alpha * criterion_reconstruction(xs_hat, x_s)
-            loss += betas[epoch] * criterion_disentangle(z_task, z_t)
+            loss += betas[epoch] * criterion_distance(z_task, z_t)
             loss += gamma * (criterion_disentangle(pred_share, random_share) + criterion_disentangle(pred_spe, random_spe))
             loss += delta * criterion_classifier(ys_tilde, y_s.cuda())
             loss += delta * criterion_triplet(z_source_tilde, z_source_prime, z_source)
@@ -80,8 +80,8 @@ def train_domain_adaptation(model, optimizer, source_train_loader, target_train_
         print(f'accuracy source: {round(corrects_source / total_source * 100, 2)}%')
         print(f'accuracy target: {round(corrects_target / total_target * 100, 2)}%')
         if show_images:
-            show_decoded_images(x_s, xs_hat, xs_prime, xst)
-            show_decoded_images(x_t, xt_hat, xt_prime, xts)
+            show_decoded_images(x_s, xs_hat, xt_rand[:len(x_s)], xst)
+            show_decoded_images(x_t, xt_hat, xs_rand[:len(x_t)], xts)
 
 
 def train_disentangle(model, optimizer, source_train_loader, epochs=30, beta_max=10, running_beta=20,
