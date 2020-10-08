@@ -16,8 +16,11 @@ Create the data folder:
 ```
 mkdir data
 ```
-Download the 3D shapes data [here](https://console.cloud.google.com/storage/browser/3d-shapes) and copy it into the data folder.
 
+## Datasets
+Download the 3D shapes data [here](https://console.cloud.google.com/storage/browser/3d-shapes) and copy it into the data folder.  
+The German GTSRB dataset can be downloaded [here](http://benchmark.ini.rub.de/?section=gtsrb&subsection=dataset).  
+The Syn-signs dataset can be dowloaded [here](http://graphics.cs.msu.ru/en/node/1337/).
 
 ## Notebooks:
 All notebooks are availables [here](https://github.com/AnonymousDiCyR/DiCyR/tree/main/DiCyR/notebooks).  
