@@ -5,6 +5,7 @@ import os
 import torch
 import torchvision.transforms as transforms
 from torchvision.datasets import MNIST, USPS, SVHN
+import torchvision
 
 import numpy as np
 import random
@@ -150,3 +151,74 @@ def load_shape(label_idx=4, data_size=20000, **kwargs):
     trainset = Shape('../data/3dshapes.h5', transform=img_transform, label_idx=label_idx, data_size=data_size)
 
     return get_loader(trainset, **kwargs)
+
+
+class Synsigns(Dataset):
+    """Synsigns Dataset."""
+    def __init__(self, data_root, data_list, transform=None):
+        """Initialize Synsigns data set.
+        Keyword Params:
+            root -- the root folder containing the data
+            data_list -- the file containing list of images - labels
+            transform (optional) -- tranfrom images when loading
+        """
+        self.root = data_root
+        self.transform = transform
+        with open(data_list, 'r') as f:
+            self.data_list = f.readlines()
+
+    def __len__(self):
+        """Get length of dataset."""
+        return len(self.data_list)
+
+    def __getitem__(self, idx):
+        """Get item."""
+        img_name, labels, _ = self.data_list[idx].split()
+        imgs = Image.open(os.path.join(self.root, img_name)).convert('RGB')
+
+        if self.transform:
+            imgs = self.transform(imgs)
+
+        labels = int(labels)
+
+        return imgs, labels
+
+
+def load_synsigns(img_size=32, **kwargs):
+    """Load Synsigns dataloader.
+    :**kwargs: arguments to pass to dataloader constructor
+    :returns: loader
+    """
+    # Load target images
+    img_transform = transforms.Compose([
+        transforms.Resize(img_size),
+        transforms.ToTensor(),
+        # transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+    ])
+
+    trainset = Synsigns(
+        data_root=os.path.join('../data/synsigns/synthetic_data/'),
+        data_list=os.path.join('../data/synsigns/synthetic_data/', 'train_labelling.txt'),
+        transform=img_transform
+    )
+
+    
+    return get_loader(trainset, **kwargs)
+
+
+def load_GTSRB(img_size=32,**kwargs):
+    """Load GTSRB dataloader.
+    :**kwargs: arguments to pass to dataloader constructor
+    :returns: loader
+    """
+    data_transform = transforms.Compose([
+                transforms.Resize((img_size, img_size)), # spatial size of vgg-f input,
+                transforms.ToTensor(),
+                #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+
+
+    data = torchvision.datasets.ImageFolder(root='../data/GTSRB/Final_Training/Images/', transform=data_transform)
+    loader = torch.utils.data.DataLoader(data, **kwargs)
+    
+    return loader
