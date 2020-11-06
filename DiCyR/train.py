@@ -106,8 +106,8 @@ def train_disentangle(model, optimizer, source_train_loader, epochs=30, beta_max
             x = x.cuda()
             y = y.cuda()
             x_hat, y_hat, (z_task, z_style), (random_task, random_style), (pred_task, pred_style) = model.forward(x)
-            z_style = model.encoder.forward_style(x_rand[:len(x)])
-            x_prime = model.decoder(z_task, z_style)
+            z_style_r = model.encoder.forward_style(x_rand[:len(x)])
+            x_prime = model.decoder(z_task, z_style_r)
             y_tilde, z_style_tilde = model.forward_style(x_prime)
 
             loss += alpha[epoch] * criterion_reconstruction(x_hat, x)
@@ -115,7 +115,7 @@ def train_disentangle(model, optimizer, source_train_loader, epochs=30, beta_max
             loss += betas[epoch] * (
                     disentangle_criterion(pred_task, random_task) + disentangle_criterion(pred_style, random_style))
             loss += 0.1 * criterion_classifier(y_tilde, y)
-            loss += 0.1 * criterion_triplet(z_style_tilde, z_style, z_style)
+            loss += 0.1 * criterion_triplet(z_style_tilde, z_style_r, z_style)
 
             optimizer.zero_grad()
             loss.backward()
