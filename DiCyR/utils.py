@@ -49,9 +49,9 @@ def test_network(model, dataloader):
 
 def plot_target_cross_domain_swapping(model, source_train_loader, target_train_loader):
     X, _ = next(iter(target_train_loader))
-    y, _, (z_share, z_spe),  _, _ = model.forward_t(X.cuda())
+    y, _, (z_share, z_spe),  _ = model(X.cuda(), mode='all_target')
     X2, _ = next(iter(source_train_loader))
-    _, _, (z_share, _),  _, _ = model.forward_t(X2.cuda())
+    _, _, (z_share, _),  _ = model(X2.cuda(), mode='all_target')
     #blank
     plt.subplot(1,6,1)
     plt.imshow(torch.ones((32,32,3)))
@@ -86,7 +86,7 @@ def extract_features(encoder, train_loader, sample_count, batch_size=128, featur
     labels = np.zeros(shape=(sample_count))
     i = 0
     for x, labels_batch in train_loader:
-        features_batch = encoder(x.cuda())[0]
+        features_batch = encoder(x.cuda(), mode='task')[0]
         features[i * batch_size: (i + 1) * batch_size] = features_batch.cpu().detach().numpy()
         labels[i * batch_size: (i + 1) * batch_size] = labels_batch.numpy()
         i += 1
@@ -124,7 +124,7 @@ def plot_tsne(model, source_train_loader, target_train_loader, batch_size=128, f
 
 def plot_swapped_styles(model, train_loader):
     X, _ = next(iter(train_loader))
-    y, _, (z_task, z_style), _, _ = model.forward(X.cuda())
+    y, _, (z_task, z_style), _ = model(X.cuda(), mode='all')
     # blank
     plt.subplot(1, 6, 1)
     plt.imshow(torch.ones((32, 32, 3)))

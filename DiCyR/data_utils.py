@@ -10,6 +10,28 @@ import torchvision
 import numpy as np
 import random
 import h5py
+import cv2
+
+def random_affine_augmentation(x):
+    M = np.float32([[1 + np.random.normal(0.0, 0.1), np.random.normal(0.0, 0.1), 0], 
+                    [np.random.normal(0.0, 0.1), 1 + np.random.normal(0.0, 0.1), 0]])
+    rows, cols = x.shape[1:3]
+    dst = cv2.warpAffine(x.numpy()[0], M, (cols,rows))
+    dst = np.expand_dims(dst, axis=0)
+    return torch.from_numpy(dst)
+
+def gaussian_blur(x, sigma=0.1):
+	ksize = int(sigma + 0.5) * 8 + 1
+	dst = cv2.GaussianBlur(x.numpy(), (ksize, ksize), sigma)
+	return torch.from_numpy(dst)
+
+def color_random_affine_augmentation(x):
+	M = np.float32([[1 + np.random.normal(0.0, 0.1), np.random.normal(0.0, 0.1), 0], 
+				[np.random.normal(0.0, 0.1), 1 + np.random.normal(0.0, 0.1), 0]])
+	rows, cols = x.shape[1:3]
+	dst = cv2.warpAffine(np.transpose(x.numpy(), [1, 2, 0]), M, (cols,rows))
+	dst = np.transpose(dst, [2, 0, 1])
+	return torch.from_numpy(dst)
 
 class MNIST_M(Dataset):
     """MNIST_M Dataset."""
@@ -73,27 +95,29 @@ def get_loader(dataset, **kwargs):
     return torch.utils.data.DataLoader(dataset, **kwargs)
 
 
-def load_mnist(img_size=28, rotation=0, **kwargs):
+def load_mnist(img_size=28, augment=False, **kwargs):
     transformations = [transforms.Resize(img_size)]
-    if rotation:
-        transformations.append((transforms.RandomRotation(rotation)))
     transformations.append(transforms.ToTensor())
+    if augment:
+        transformations.append(transforms.Lambda(lambda x: random_affine_augmentation(x)))
+        transformations.append(transforms.Lambda(lambda x: gaussian_blur(x)))
     img_transform = transforms.Compose(transformations)
-
+    test_transform = transforms.Compose([transforms.Resize(img_size), transforms.ToTensor()])
     train_set = MNIST('../data', transform=img_transform, download=True, train=True)
-    test_set = MNIST('../data', transform=img_transform, download=True, train=False)
+    test_set = MNIST('../data', transform=test_transform, download=True, train=False)
     return get_loader(train_set, **kwargs), get_loader(test_set, **kwargs)
 
 
-def load_usps(img_size=28, rotation=0, split=1000, **kwargs):
+def load_usps(img_size=28, augment=False, **kwargs):
     transformations = [transforms.Resize(img_size)]
-    if rotation:
-        transformations.append((transforms.RandomRotation(rotation)))
     transformations.append(transforms.ToTensor())
+    if augment:
+        transformations.append(transforms.Lambda(lambda x: random_affine_augmentation(x)))
+        transformations.append(transforms.Lambda(lambda x: gaussian_blur(x)))
     img_transform = transforms.Compose(transformations)
-
-    dataset = USPS('../data', transform=img_transform, download=True)
-    train_set, test_set = torch.utils.data.random_split(dataset, [len(dataset) - split, split])
+    test_transform = transforms.Compose([transforms.Resize(img_size), transforms.ToTensor()])
+    train_set = USPS('../data', transform=img_transform, download=True)
+    test_set = USPS('../data', transform=test_transform, download=True)
     return get_loader(train_set, **kwargs), get_loader(test_set, **kwargs)
 
 
@@ -222,3 +246,5 @@ def load_GTSRB(img_size=32,**kwargs):
     loader = torch.utils.data.DataLoader(data, **kwargs)
     
     return loader
+
+    return get_loader(trainset, **kwargs)
