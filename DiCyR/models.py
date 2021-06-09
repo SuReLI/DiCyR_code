@@ -77,7 +77,7 @@ class DomainAdaptationNetwork(nn.Module):
             
         pred_spe = self.spe_predictor(GradReverse.grad_reverse(z_task))
         pred_task = self.task_predictor(GradReverse.grad_reverse(z_spe))
-        return xt_hat, logits, (z_task, z_target), (pred_task, pred_spe)
+        return xt_hat, logits, (z_task, z_spe), (pred_task, pred_spe)
 
     def decode(self, z_task, x_rand, mode='source'):
         if mode ==  'source':
