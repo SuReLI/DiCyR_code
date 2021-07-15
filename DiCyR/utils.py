@@ -51,7 +51,7 @@ def plot_target_cross_domain_swapping(model, source_train_loader, target_train_l
     X, _ = next(iter(target_train_loader))
     y, _, (z_share, z_spe),  _ = model(X.cuda(), mode='all_target')
     X2, _ = next(iter(source_train_loader))
-    _, _, (z_share, _),  _ = model(X2.cuda(), mode='all_target')
+    _, _, (z_share, _),  _ = model(X2.cuda(), mode='all_source')
     #blank
     plt.subplot(1,6,1)
     plt.imshow(torch.ones((32,32,3)))
@@ -71,9 +71,8 @@ def plot_target_cross_domain_swapping(model, source_train_loader, target_train_l
         plt.axis('off')
         plt.tight_layout()
 
-        z_x = torch.zeros_like(z_share)
-        z_x[:] = z_share[j]
-        y2  = model.decoder_target(z_x, z_spe)
+        z_x = torch.ones_like(z_share) *  z_share[j]
+        y2  = model.decode(z_x, X.cuda(), mode='target')
         for i in range(5):
             plt.subplot(1,6,i+2)
             plt.imshow(y2[i].cpu().detach()[0], cmap='gray')
