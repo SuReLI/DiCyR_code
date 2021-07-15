@@ -27,13 +27,14 @@ def train_domain_adaptation(model, optimizer, random_projector, source_train_loa
         total_source, total_target = 0, 0
 
         # random images used for disentanglement
-        xs_rand = next(iter(source_train_loader))[0].cuda()
-        xt_rand = next(iter(target_train_loader))[0].cuda()
+        #xs_rand = next(iter(source_train_loader))[0].cuda()
+        #xt_rand = next(iter(target_train_loader))[0].cuda()
 
         for (x_s, y_s), (x_t, y_t) in zip(source_train_loader, target_train_loader):
             loss = 0
             x_s, y_s, x_t, y_t = x_s.cuda(), y_s.cuda(), x_t.cuda(), y_t.cuda()
-
+            min_len = min(len(x_s), len(x_t))
+            x_s, y_s, x_t, y_t = x_s[:min_len], y_s[:min_len], x_t[:min_len], y_t[:min_len]
             # target batch
             xt_hat, yt_hat, (z_task, z_target), (pred_task, pred_spe) = model(x_t, mode='all_target')
             #Random projection to reduce the dimension
@@ -41,9 +42,9 @@ def train_domain_adaptation(model, optimizer, random_projector, source_train_loa
             random_spe = random_projector(z_target)
             
             # synthetic sample with task information from x_t and style info from xs_rand
-            xts = model.decode(z_task, xs_rand[:len(x_t)], mode='source')
+            xts = model.decode(z_task, x_s[:len(x_t)], mode='source')
             z_s = model.encoder(xts.detach(), mode='task')
-            z_target_prime = model.encoder(xt_rand[:len(x_t)], mode='target')
+            z_target_prime = model.encoder(torch.flip(x_t, [0])[:len(x_t)], mode='target')
             xt_prime = model.decoder_target(z_task, z_target_prime)
             yt_tilde, z_target_tilde = model.forward(xt_prime, mode='target')
 
@@ -54,8 +55,8 @@ def train_domain_adaptation(model, optimizer, random_projector, source_train_loa
             loss += alpha * criterion_reconstruction(xt_hat, x_t)
             loss += betas[epoch] * criterion_distance(z_task, z_s)
             loss += gamma * (criterion_disentangle(pred_task, random_task) + criterion_disentangle(pred_spe, random_spe))
-            loss += delta * torch.mean((torch.exp(w.detach()) * criterion_weighted_classifier(yt_tilde, predicted.detach())))
-            loss += delta * criterion_triplet(z_target_tilde, z_target_prime, z_target)
+            loss += 0.1 * torch.mean((torch.exp(w.detach()) * criterion_weighted_classifier(yt_tilde, predicted.detach())))
+            loss += delta[epoch] * criterion_triplet(z_target_tilde, z_target_prime, z_target)
 
             # source batch
             xs_hat, ys_hat, (z_task, z_source), (pred_task, pred_spe) = model(x_s, mode='all_source')
@@ -64,9 +65,9 @@ def train_domain_adaptation(model, optimizer, random_projector, source_train_loa
             random_spe = random_projector(z_source)
             
             # synthetic sample with task information from x_s and style info from xt_rand
-            xst = model.decode(z_task, xt_rand[:len(x_s)], mode='target')
+            xst = model.decode(z_task, x_t[:len(x_s)], mode='target')
             z_t = model.encoder(xst.detach(), mode='task')
-            z_source_prime = model.encoder(xs_rand[:len(x_s)], mode='source')
+            z_source_prime = model.encoder(torch.flip(x_s, [0])[:len(x_s)], mode='source')
             xs_prime = model.decoder_source(z_task, z_source_prime)
             ys_tilde, z_source_tilde = model(xs_prime, mode='source')
 
@@ -78,8 +79,8 @@ def train_domain_adaptation(model, optimizer, random_projector, source_train_loa
             loss += alpha * criterion_reconstruction(xs_hat, x_s)
             loss += betas[epoch] * criterion_distance(z_task, z_t)
             loss += gamma * (criterion_disentangle(pred_task, random_task) + criterion_disentangle(pred_spe, random_spe))
-            loss += delta * criterion_classifier(ys_tilde, y_s.cuda())
-            loss += delta * criterion_triplet(z_source_tilde, z_source_prime, z_source)
+            loss += 0.1 * criterion_classifier(ys_tilde, y_s.cuda())
+            loss += delta[epoch] * criterion_triplet(z_source_tilde, z_source_prime, z_source)
 
             optimizer.zero_grad()
             loss.backward()
@@ -91,8 +92,8 @@ def train_domain_adaptation(model, optimizer, random_projector, source_train_loa
         print(f'accuracy source: {round(corrects_source / total_source * 100, 2)}%')
         print(f'accuracy target: {round(corrects_target / total_target * 100, 2)}%')
         if show_images:
-            show_decoded_images(x_s, xs_hat, xt_rand[:len(x_s)], xst)
-            show_decoded_images(x_t, xt_hat, xs_rand[:len(x_t)], xts)
+            show_decoded_images(x_s[:16], xs_hat[:16], x_t[:len(x_s)][:16], xst[:16])
+            show_decoded_images(x_t[:16], xt_hat[:16], x_s[:len(x_t)][:16], xts[:16])
 
 
 def train_disentangle(model, optimizer, random_projector, source_train_loader,
@@ -106,7 +107,6 @@ def train_disentangle(model, optimizer, random_projector, source_train_loader,
     for epoch in t:
         corrects, total = 0, 0
         # random images used for disentanglement
-        x_rand = next(iter(source_train_loader))[0].cuda()
         for x, y in source_train_loader:
             loss = 0
             x = x.cuda()
@@ -115,7 +115,7 @@ def train_disentangle(model, optimizer, random_projector, source_train_loader,
             # random projections to reduce dimension
             random_task = random_projector(z_task)
             random_style = random_projector(z_style)
-            z_style_r = model.encoder(x_rand[:len(x)], mode='style')
+            z_style_r = model.encoder(torch.flip(x, [0]), mode='style')
             x_prime = model.decoder(z_task, z_style_r)
             y_tilde, z_style_tilde = model(x_prime, mode='style')
 
@@ -123,7 +123,7 @@ def train_disentangle(model, optimizer, random_projector, source_train_loader,
             loss += criterion_classifier(y_hat, y)
             loss += betas[epoch] * (disentangle_criterion(pred_task, random_task) + disentangle_criterion(pred_style, random_style))
             loss += 0.1 * criterion_classifier(y_tilde, y)
-            loss += 0.1 * criterion_triplet(z_style_tilde, z_style_r, z_style)
+            loss += 1 * criterion_triplet(z_style_tilde, z_style_r, z_style)
             
             _, predicted = y_hat.max(1)
             corrects += predicted.eq(y).sum().item()
@@ -135,4 +135,4 @@ def train_disentangle(model, optimizer, random_projector, source_train_loader,
             t.set_description(f'epoch:{epoch} current accuracy:{round(corrects / total * 100, 2)}%')
         # ===================log========================
         if show_images:
-            show_decoded_images(x[:32], x_hat[:32], x_rand[:32], x_prime[:32])
+            show_decoded_images(x[:32], x_hat[:32], torch.flip(x, [0])[:32], x_prime[:32])
