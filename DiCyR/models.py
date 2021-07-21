@@ -27,11 +27,18 @@ class ProjectorNetwork(nn.Module):
     def __init__(self, latent_dim):
         super(ProjectorNetwork, self).__init__()
         self.net=  nn.Sequential(
-                        nn.Linear(latent_dim, 100),
-                        nn.ReLU(True),
-                        nn.Linear(100, 100),
-                        nn.ReLU(True),
-                        nn.Linear(100, 1))
+                        nn.Linear(latent_dim, 32))
+        
+    def forward(self, x):
+        return torch.cos(self.net(x))
+    
+class SelfProjectorNetwork(nn.Module):
+    def __init__(self, latent_dim):
+        super(SelfProjectorNetwork, self).__init__()
+        self.net=  nn.Sequential(
+                        nn.Linear(latent_dim, 75),
+                        nn.ReLU(),
+                        nn.Linear(75, latent_dim))
         
     def forward(self, x):
         return torch.cos(self.net(x))
@@ -48,8 +55,8 @@ class DomainAdaptationNetwork(nn.Module):
         self.random_source = ProjectorNetwork(latent_space_dim)
         self.random_target = ProjectorNetwork(latent_space_dim)
         self.random_task = ProjectorNetwork(latent_space_dim)
-        self.spe_predictor = ProjectorNetwork(latent_space_dim)
-        self.task_predictor = ProjectorNetwork(latent_space_dim)
+        self.spe_predictor = SelfProjectorNetwork(latent_space_dim)
+        self.task_predictor = SelfProjectorNetwork(latent_space_dim)
 
        
     def forward(self, x, mode=None):
