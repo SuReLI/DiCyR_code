@@ -38,7 +38,10 @@ class SelfProjectorNetwork(nn.Module):
         self.net=  nn.Sequential(
                         nn.Linear(latent_dim, 75),
                         nn.ReLU(),
-                        nn.Linear(75, latent_dim))
+                        nn.Linear(75, 75),
+                        nn.ReLU(),
+                        nn.Linear(75, latent_dim),
+                        nn.ReLU(),)
         
     def forward(self, x):
         return torch.cos(self.net(x))
