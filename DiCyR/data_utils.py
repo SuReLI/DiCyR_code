@@ -121,12 +121,12 @@ def load_usps(img_size=28, augment=False, **kwargs):
     return get_loader(train_set, **kwargs), get_loader(test_set, **kwargs)
 
 
-def load_svhn(img_size=(32, 32), rotation=0, grayscale=False, split=1000, **kwargs):
+def load_svhn(img_size=(32, 32), rotation=0.1, grayscale=False, split=1000, **kwargs):
     transformations = [transforms.Resize(img_size), transforms.ColorJitter(hue=.05, saturation=.15)]
     if rotation:
         transformations.append((transforms.RandomRotation(rotation)))
     if grayscale:
-        transformations.append((transforms.Grayscale()))
+        transformations.append((transforms.Grayscale(0.2)))
     transformations.append(transforms.ToTensor())
     img_transform = transforms.Compose(transformations)
 
