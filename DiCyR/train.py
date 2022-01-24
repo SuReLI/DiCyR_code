@@ -32,7 +32,6 @@ def train_domain_adaptation(
     log=False,
     show_images=False,
 ):
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
     t = tqdm(range(epochs))
     for epoch in t:
         total_loss = 0
@@ -48,28 +47,28 @@ def train_domain_adaptation(
             y_t = y_t[:min_len].cuda()
 
             # ===================target batch======================================
-            xt_hat, yt_hat, (z_task, z_target), (pred_task, pred_spe) = model(
+            xt_hat, yt_hat, (tau, sigma_t), (pred_tau, pred_sigma) = model(
                 x_t, mode="all_target"
             )
 
-            rev_task = GradReverse.grad_reverse(z_task)
-            rev_spe = GradReverse.grad_reverse(z_target)
+            rev_tau = GradReverse.grad_reverse(tau)
+            rev_sigma = GradReverse.grad_reverse(sigma_t)
 
             # synthetic sample with task information from x_t and style info from xs_rand
-            xts = model.decode(z_task, x_s, mode="source")
-            z_s = model.encoder(xts.detach(), mode="task")
-            z_target_prime = model.encoder(torch.flip(x_t, [0]), mode="target")
-            xt_prime = model.decoder_target(z_task, z_target_prime)
-            yt_tilde, z_target_tilde = model.forward(xt_prime, mode="target")
+            xts = model.decode(tau, x_s, mode="source")
+            tau_s = model.encoder(xts.detach(), mode="task")
+            sigma_t_prime = model.encoder(torch.flip(x_t, [0]), mode="target")
+            xt_prime = model.decoder_target(tau, sigma_t_prime)
+            yt_tilde, sigma_t_tilde = model.forward(xt_prime, mode="target")
 
             w, predicted = yt_hat.max(1)
             corrects_target += predicted.eq(y_t).sum().item()
             total_target += y_t.size(0)
 
             loss += alpha * criterion_reconstruction(xt_hat, x_t)
-            loss += betas[epoch] * criterion_distance(z_task, z_s)
+            loss += betas[epoch] * criterion_distance(tau, tau_s)
             loss += gamma * (
-                feature_loss(pred_task, rev_task) + feature_loss(pred_spe, rev_spe)
+                feature_loss(pred_tau, rev_tau) + feature_loss(pred_sigma, rev_sigma)
             )
             loss += 0.1 * torch.mean(
                 (
@@ -77,20 +76,20 @@ def train_domain_adaptation(
                     * criterion_weighted_classifier(yt_tilde, predicted.detach())
                 )
             )
-            loss += delta * criterion_triplet(z_target_tilde, z_target_prime, z_target)
+            loss += delta * criterion_triplet(sigma_t_tilde, sigma_t_prime, sigma_t)
 
             # source batch
-            xs_hat, ys_hat, (z_task, z_source), (pred_task, pred_spe) = model(
+            xs_hat, ys_hat, (tau, sigma_s), (pred_tau, pred_sigma) = model(
                 x_s, mode="all_source"
             )
-            rev_task = GradReverse.grad_reverse(z_task)
-            rev_spe = GradReverse.grad_reverse(z_source)
+            rev_tau = GradReverse.grad_reverse(tau)
+            rev_sigma = GradReverse.grad_reverse(sigma_s)
 
             # synthetic sample with task information from x_s and style info from xt_rand
-            xst = model.decode(z_task, x_t, mode="target")
-            z_t = model.encoder(xst.detach(), mode="task")
-            z_source_prime = model.encoder(torch.flip(x_s, [0]), mode="source")
-            xs_prime = model.decoder_source(z_task, z_source_prime)
+            xst = model.decode(tau, x_t, mode="target")
+            tau_t = model.encoder(xst.detach(), mode="task")
+            sigma_t_prime = model.encoder(torch.flip(x_s, [0]), mode="source")
+            xs_prime = model.decoder_source(tau, sigma_t_prime)
             ys_tilde, z_source_tilde = model(xs_prime, mode="source")
 
             _, predicted = ys_hat.max(1)
@@ -99,12 +98,12 @@ def train_domain_adaptation(
 
             loss += criterion_classifier(ys_hat, y_s)
             loss += alpha * criterion_reconstruction(xs_hat, x_s)
-            loss += betas[epoch] * criterion_distance(z_task, z_t)
+            loss += betas[epoch] * criterion_distance(tau, tau_t)
             loss += gamma * (
-                feature_loss(pred_task, rev_task) + feature_loss(pred_spe, rev_spe)
+                feature_loss(pred_tau, rev_tau) + feature_loss(pred_sigma, rev_sigma)
             )
             loss += 0.1 * criterion_classifier(ys_tilde, y_s.cuda())
-            loss += delta * criterion_triplet(z_source_tilde, z_source_prime, z_source)
+            loss += delta * criterion_triplet(z_source_tilde, sigma_t_prime, sigma_s)
 
             optimizer.zero_grad()
             loss.backward()
@@ -154,27 +153,24 @@ def train_disentangle(
     t = tqdm(range(epochs))
     for epoch in t:
         corrects, total = 0, 0
-        # random images used for disentanglement
         for x, y in source_train_loader:
             loss = 0
             x = x.cuda()
             y = y.cuda()
-            x_hat, y_hat, (z_task, z_style), (pred_task, pred_style) = model(
-                x, mode="all"
-            )
-            rev_task = z_task
-            rev_style = z_style
-            z_style_r = model.encoder(torch.flip(x, [0]), mode="style")
-            x_prime = model.decoder(z_task, z_style_r)
+            x_hat, y_hat, (tau, sigma), (pred_tau, pred_sigma) = model(x, mode="all")
+            rev_tau = tau
+            rev_sigma = sigma
+            sigma_r = model.encoder(torch.flip(x, [0]), mode="style")
+            x_prime = model.decoder(tau, sigma_r)
             y_tilde, z_style_tilde = model(x_prime, mode="style")
 
             loss += 10 * criterion_reconstruction(x_hat, x)
             loss += criterion_classifier(y_hat, y)
             loss += betas[epoch] * (
-                feature_loss(pred_task, rev_task) + feature_loss(pred_style, rev_style)
+                feature_loss(pred_tau, rev_tau) + feature_loss(pred_sigma, rev_sigma)
             )
             loss += 0.1 * criterion_classifier(y_tilde, y)
-            loss += 1 * criterion_triplet(z_style_tilde, z_style_r, z_style)
+            loss += 1 * criterion_triplet(z_style_tilde, sigma_r, sigma)
 
             _, predicted = y_hat.max(1)
             corrects += predicted.eq(y).sum().item()

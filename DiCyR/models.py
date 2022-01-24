@@ -4,14 +4,6 @@ from torch.nn import functional as F
 import numpy as np
 
 
-# def get_simple_classifier(latent_space_dim=1024):
-#     return nn.Sequential(
-#         nn.Dropout2d(),
-#         nn.Linear(in_features=latent_space_dim, out_features=10),
-#         nn.LogSoftmax(dim=1),
-#     )
-
-
 class GradReverse(torch.autograd.Function):
     """Extension of grad reverse layer."""
 
@@ -26,17 +18,6 @@ class GradReverse(torch.autograd.Function):
 
     def grad_reverse(x):
         return GradReverse.apply(x)
-
-
-# class ProjectorNetwork(nn.Module):
-#     def __init__(self, latent_dim):
-#         super(ProjectorNetwork, self).__init__()
-#         self.net = nn.Sequential(
-#             nn.Linear(latent_dim, 32), nn.ReLU(), nn.Linear(32, latent_dim)
-#         )
-
-#     def forward(self, x):
-#         return self.net(x)
 
 
 class FeaturesPredictorNetwork(nn.Module):
@@ -68,35 +49,35 @@ class DomainAdaptationNetwork(nn.Module):
             nn.LogSoftmax(dim=1),
         )
 
-        self.spe_predictor = FeaturesPredictorNetwork(latent_space_dim)
-        self.task_predictor = FeaturesPredictorNetwork(latent_space_dim)
+        self.sigma_predictor = FeaturesPredictorNetwork(latent_space_dim)
+        self.tau_predictor = FeaturesPredictorNetwork(latent_space_dim)
 
     def forward(self, x, mode=None):
         if mode is None:
-            z_task = self.encoder(x, mode="task")
-            logits = self.classifier(z_task)
+            tau = self.encoder(x, mode="task")
+            logits = self.classifier(tau)
             return logits
 
-        z_task, z_source, z_target = self.encoder(x)
-        logits = self.classifier(z_task)
+        tau, sigma_s, sigma_t = self.encoder(x)
+        logits = self.classifier(tau)
 
         if mode == "source":
-            return logits, z_source
+            return logits, sigma_s
 
         elif mode == "target":
-            return logits, z_target
+            return logits, sigma_t
 
         elif mode == "all_target":
-            xt_hat = self.decoder_target(z_task, z_target)
-            z_spe = z_source
+            xt_hat = self.decoder_target(tau, sigma_t)
+            sigma_spe = sigma_s
 
         elif mode == "all_source":
-            xt_hat = self.decoder_source(z_task, z_source)
-            z_spe = z_target
+            xt_hat = self.decoder_source(tau, sigma_s)
+            sigma_spe = sigma_t
 
-        pred_spe = self.spe_predictor(GradReverse.grad_reverse(z_task))
-        pred_task = self.task_predictor(GradReverse.grad_reverse(z_spe))
-        return xt_hat, logits, (z_task, z_spe), (pred_task, pred_spe)
+        pred_sigma = self.sigma_predictor(GradReverse.grad_reverse(tau))
+        pred_tau = self.tau_predictor(GradReverse.grad_reverse(sigma_spe))
+        return xt_hat, logits, (tau, sigma_spe), (pred_tau, pred_sigma)
 
     def decode(self, z_task, x_rand, mode="source"):
         if mode == "source":
@@ -121,22 +102,22 @@ class DisentangledNetwork(nn.Module):
             nn.LogSoftmax(dim=1),
         )
 
-        self.style_predictor = FeaturesPredictorNetwork(latent_space_dim)
-        self.task_predictor = FeaturesPredictorNetwork(latent_space_dim)
+        self.sigma_predictor = FeaturesPredictorNetwork(latent_space_dim)
+        self.tau_predictor = FeaturesPredictorNetwork(latent_space_dim)
 
     def forward(self, x, mode="all"):
-        z_task, z_style = self.encoder(x)
-        logits = self.classifier(z_task)
+        tau, sigma = self.encoder(x)
+        logits = self.classifier(tau)
 
         if mode == "all":
-            x_hat = self.decoder(z_task, z_style)
-            pred_style = self.style_predictor(GradReverse.grad_reverse(z_task))
-            pred_task = self.task_predictor(GradReverse.grad_reverse(z_style))
+            x_hat = self.decoder(tau, sigma)
+            pred_sigma = self.sigma_predictor(GradReverse.grad_reverse(tau))
+            pred_tau = self.tau_predictor(GradReverse.grad_reverse(sigma))
 
-            return x_hat, logits, (z_task, z_style), (pred_task, pred_style)
+            return x_hat, logits, (tau, sigma), (pred_tau, pred_sigma)
 
         elif mode == "style":
-            return logits, z_style
+            return logits, sigma
 
         else:
             return logits
@@ -174,8 +155,8 @@ class Decoder(nn.Module):
             nn.Sigmoid(),
         )
 
-    def forward(self, z_task, z_spe):
-        z = torch.cat([z_task, z_spe], 1)
+    def forward(self, tau, sigma):
+        z = torch.cat([tau, sigma], 1)
         feat_encode = self.deco_dense(z)
         feat_encode = feat_encode.view(-1, *self.conv_feat_size)
         y = self.deco_conv(feat_encode)
@@ -207,8 +188,8 @@ class DisentanglementEncoder(nn.Module):
             nn.ReLU(True),
         )
 
-        self.share_feat = nn.Linear(in_features=1024, out_features=latent_space_dim)
-        self.style_feat = nn.Linear(in_features=1024, out_features=latent_space_dim)
+        self.fc_tau = nn.Linear(in_features=1024, out_features=latent_space_dim)
+        self.fc_sigma = nn.Linear(in_features=1024, out_features=latent_space_dim)
 
     def forward(self, input_data, mode="all"):
         if (input_data.shape[1] == 1) & (self.nb_channels == 3):
@@ -216,13 +197,13 @@ class DisentanglementEncoder(nn.Module):
         feat = self.embedder(input_data)
 
         if mode == "all":
-            z_share = F.relu(self.share_feat(feat))
-            z_style = F.relu(self.style_feat(feat))
-            return z_share, z_style
+            tau = F.relu(self.fc_tau(feat))
+            sigma = F.relu(self.fc_sigma(feat))
+            return tau, sigma
 
         elif mode == "style":
-            z_style = F.relu(self.style_feat(feat))
-            return z_style
+            sigma = F.relu(self.fc_sigma(feat))
+            return sigma
 
 
 class DomainAdaptationEncoder(nn.Module):
@@ -232,28 +213,28 @@ class DomainAdaptationEncoder(nn.Module):
         self.latent_space_dim = latent_space_dim
         self.nb_channels = nb_channels
         self.embedder = embedder
-        self.task_feat = nn.Linear(in_features=512, out_features=latent_space_dim)
-        self.source_feat = nn.Linear(in_features=512, out_features=latent_space_dim)
-        self.target_feat = nn.Linear(in_features=512, out_features=latent_space_dim)
+        self.fc_tau = nn.Linear(in_features=512, out_features=latent_space_dim)
+        self.fc_sigma_s = nn.Linear(in_features=512, out_features=latent_space_dim)
+        self.fc_sigma_t = nn.Linear(in_features=512, out_features=latent_space_dim)
 
     def forward(self, input_data, mode="all"):
         if (input_data.shape[1] == 1) & (self.nb_channels == 3):
             input_data = input_data.repeat(1, 3, 1, 1)
         feat = self.embedder(input_data)
         if mode == "task":
-            z_task = F.relu(self.task_feat(feat))
-            return z_task
+            tau = F.relu(self.fc_tau(feat))
+            return tau
 
         elif mode == "source":
-            z_source = F.relu(self.source_feat(feat))
-            return z_source
+            sigma_s = F.relu(self.fc_sigma_s(feat))
+            return sigma_s
 
         elif mode == "target":
-            z_target = F.relu(self.target_feat(feat))
-            return z_target
+            sigma_t = F.relu(self.fc_sigma_t(feat))
+            return sigma_t
 
         else:
-            z_task = F.relu(self.task_feat(feat))
-            z_source = F.relu(self.source_feat(feat))
-            z_target = F.relu(self.target_feat(feat))
-            return z_task, z_source, z_target
+            tau = F.relu(self.fc_tau(feat))
+            sigma_s = F.relu(self.fc_sigma_s(feat))
+            sigma_t = F.relu(self.fc_sigma_t(feat))
+            return tau, sigma_s, sigma_t
