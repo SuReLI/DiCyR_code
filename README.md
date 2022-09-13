@@ -5,7 +5,7 @@ This repository contains the code and notebooks illustrating the experiments pre
 ## Installation
 First clone the repository:
 ```
-git clone https://github.com/AnonymousDiCyR/DiCyR.git
+git clone https://github.com/SuReLI/DiCyR_code.git
 cd DiCyR
 ```
 Create a virtual environment:
